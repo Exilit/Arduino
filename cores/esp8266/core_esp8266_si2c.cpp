@@ -103,23 +103,23 @@ private:
     ETSTimer timer;
 
     // Event/IRQ callbacks, so they can't use "this" and need to be static
-    static void IRAM_ATTR onSclChange(void);
-    static void IRAM_ATTR onSdaChange(void);
+    static void ICACHE_RAM_ATTR onSclChange(void);
+    static void ICACHE_RAM_ATTR onSdaChange(void);
     static void eventTask(ETSEvent *e);
-    static void IRAM_ATTR onTimer(void *unused);
+    static void ICACHE_RAM_ATTR onTimer(void *unused);
 
     // Allow not linking in the slave code if there is no call to setAddress
     bool _slaveEnabled = false;
 
     // Internal use functions
-    void IRAM_ATTR busywait(unsigned int v);
+    void ICACHE_RAM_ATTR busywait(unsigned int v);
     bool write_start(void);
     bool write_stop(void);
     bool write_bit(bool bit);
     bool read_bit(void);
     bool write_byte(unsigned char byte);
     unsigned char read_byte(bool nack);
-    void IRAM_ATTR onTwipEvent(uint8_t status);
+    void ICACHE_RAM_ATTR onTwipEvent(uint8_t status);
 
     // Handle the case where a slave needs to stretch the clock with a time-limited busy wait
     inline void WAIT_CLOCK_STRETCH()
@@ -149,9 +149,11 @@ public:
     uint8_t transmit(const uint8_t* data, uint8_t length);
     void attachSlaveRxEvent(void (*function)(uint8_t*, size_t));
     void attachSlaveTxEvent(void (*function)(void));
-    void IRAM_ATTR reply(uint8_t ack);
-    void IRAM_ATTR releaseBus(void);
+    void ICACHE_RAM_ATTR reply(uint8_t ack);
+    void ICACHE_RAM_ATTR releaseBus(void);
     void enableSlave();
+
+    friend bool twi_read_bit(void);
 };
 
 static Twi twi;
@@ -229,12 +231,12 @@ void Twi::enableSlave()
     }
 }
 
-void IRAM_ATTR Twi::busywait(unsigned int v)
+void ICACHE_RAM_ATTR Twi::busywait(unsigned int v)
 {
     unsigned int i;
     for (i = 0; i < v; i++)  // loop time is 5 machine cycles: 31.25ns @ 160MHz, 62.5ns @ 80MHz
     {
-        __asm__ __volatile__("nop"); // minimum element to keep GCC from optimizing this function out.
+        asm("nop"); // minimum element to keep GCC from optimizing this function out.
     }
 }
 
@@ -472,9 +474,9 @@ void Twi::attachSlaveTxEvent(void (*function)(void))
 }
 
 // DO NOT INLINE, inlining reply() in combination with compiler optimizations causes function breakup into
-// parts and the IRAM_ATTR isn't propagated correctly to all parts, which of course causes crashes.
+// parts and the ICACHE_RAM_ATTR isn't propagated correctly to all parts, which of course causes crashes.
 // TODO: test with gcc 9.x and if it still fails, disable optimization with -fdisable-ipa-fnsplit
-void IRAM_ATTR Twi::reply(uint8_t ack)
+void ICACHE_RAM_ATTR Twi::reply(uint8_t ack)
 {
     // transmit master read ready signal, with or without ack
     if (ack)
@@ -492,7 +494,7 @@ void IRAM_ATTR Twi::reply(uint8_t ack)
 }
 
 
-void IRAM_ATTR Twi::releaseBus(void)
+void ICACHE_RAM_ATTR Twi::releaseBus(void)
 {
     // release bus
     //TWCR = _BV(TWEN) | _BV(TWIE) | _BV(TWEA) | _BV(TWINT);
@@ -505,7 +507,7 @@ void IRAM_ATTR Twi::releaseBus(void)
 }
 
 
-void IRAM_ATTR Twi::onTwipEvent(uint8_t status)
+void ICACHE_RAM_ATTR Twi::onTwipEvent(uint8_t status)
 {
     twip_status = status;
     switch (status)
@@ -612,7 +614,7 @@ void IRAM_ATTR Twi::onTwipEvent(uint8_t status)
     }
 }
 
-void IRAM_ATTR Twi::onTimer(void *unused)
+void ICACHE_RAM_ATTR Twi::onTimer(void *unused)
 {
     (void)unused;
     twi.releaseBus();
@@ -662,7 +664,7 @@ void Twi::eventTask(ETSEvent *e)
 // Shorthand for if the state is any of the or'd bitmask x
 #define IFSTATE(x) if (twip_state_mask & (x))
 
-void IRAM_ATTR Twi::onSclChange(void)
+void ICACHE_RAM_ATTR Twi::onSclChange(void)
 {
     unsigned int sda;
     unsigned int scl;
@@ -860,7 +862,7 @@ void IRAM_ATTR Twi::onSclChange(void)
     }
 }
 
-void IRAM_ATTR Twi::onSdaChange(void)
+void ICACHE_RAM_ATTR Twi::onSdaChange(void)
 {
     unsigned int sda;
     unsigned int scl;
@@ -1021,6 +1023,11 @@ extern "C" {
     void twi_enableSlaveMode(void)
     {
         twi.enableSlave();
+    }
+
+    bool twi_read_bit(void)
+    {
+        return twi.read_bit();
     }
 
 };

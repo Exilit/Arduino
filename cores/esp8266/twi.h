@@ -56,6 +56,8 @@ void twi_releaseBus(void);
 
 void twi_enableSlaveMode(void);
 
+bool twi_read_bit(void);
+
 #ifdef __cplusplus
 }
 #endif
